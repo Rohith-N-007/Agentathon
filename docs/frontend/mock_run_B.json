@@ -1,0 +1,200 @@
+{
+ "events": [
+  {
+   "step": 0,
+   "kind": "call",
+   "tool": "classify_failure",
+   "payload": {}
+  },
+  {
+   "step": 0,
+   "kind": "result",
+   "tool": "classify_failure",
+   "payload": {
+    "error_type": "structure-selection",
+    "confidence": 0.9,
+    "evidence": "visited is a list, membership checks scan it"
+   }
+  },
+  {
+   "step": 1,
+   "kind": "call",
+   "tool": "read_memory",
+   "payload": {
+    "user_id": "mock_B"
+   }
+  },
+  {
+   "step": 1,
+   "kind": "result",
+   "tool": "read_memory",
+   "payload": {
+    "fingerprint": {},
+    "due_reviews": []
+   }
+  },
+  {
+   "step": 2,
+   "kind": "call",
+   "tool": "mutate_code",
+   "payload": {
+    "hypothesis": "scripted",
+    "metric_name": null
+   }
+  },
+  {
+   "step": 2,
+   "kind": "result",
+   "tool": "mutate_code",
+   "payload": {
+    "change_description": "replace the visited list with a set",
+    "metric": "cmp_count",
+    "versions_stored": true
+   }
+  },
+  {
+   "step": 3,
+   "kind": "call",
+   "tool": "generate_test_input",
+   "payload": {
+    "hypothesis": "scripted"
+   }
+  },
+  {
+   "step": 3,
+   "kind": "result",
+   "tool": "generate_test_input",
+   "payload": {
+    "why_tricky": "dense graph, long visited list",
+    "input_chars": 4297
+   }
+  },
+  {
+   "step": 4,
+   "kind": "call",
+   "tool": "request_prediction",
+   "payload": {}
+  },
+  {
+   "step": -1,
+   "kind": "prediction_request",
+   "tool": "request_prediction",
+   "payload": {
+    "question": "Will version B perform more, fewer or the same operations as version A?",
+    "options": [
+     "more",
+     "fewer",
+     "same"
+    ]
+   }
+  },
+  {
+   "step": 4,
+   "kind": "result",
+   "tool": "request_prediction",
+   "payload": {
+    "guess": "fewer"
+   }
+  },
+  {
+   "step": 5,
+   "kind": "call",
+   "tool": "run_counterfactual",
+   "payload": {}
+  },
+  {
+   "step": 5,
+   "kind": "result",
+   "tool": "run_counterfactual",
+   "payload": {
+    "count_a": 63180,
+    "count_b": 1600,
+    "outputs_equal": true,
+    "status_a": "ok",
+    "status_b": "ok",
+    "conclusive": true,
+    "prediction_correct": true
+   }
+  },
+  {
+   "step": 6,
+   "kind": "call",
+   "tool": "update_memory",
+   "payload": {
+    "user_id": "mock_B"
+   }
+  },
+  {
+   "step": 6,
+   "kind": "result",
+   "tool": "update_memory",
+   "payload": {
+    "fingerprint": {
+     "structure-selection": 0.25
+    },
+    "next_review_date": "2026-11-01"
+   }
+  },
+  {
+   "step": 7,
+   "kind": "call",
+   "tool": "select_problems",
+   "payload": {
+    "user_id": "mock_B"
+   }
+  },
+  {
+   "step": 7,
+   "kind": "result",
+   "tool": "select_problems",
+   "payload": {
+    "syllabus": [
+     {
+      "problem_id": "p4",
+      "title": "Two Sum",
+      "reason": "Targets your top weakness (structure-selection), the mistake just proven by experiment.",
+      "targets": "structure-selection"
+     },
+     {
+      "problem_id": "p1",
+      "title": "Number of Islands",
+      "reason": "Near your level, mixes skills.",
+      "targets": "mixed"
+     },
+     {
+      "problem_id": "p2",
+      "title": "Course Schedule",
+      "reason": "Near your level, mixes skills.",
+      "targets": "mixed"
+     }
+    ]
+   }
+  },
+  {
+   "step": 8,
+   "kind": "final",
+   "tool": null,
+   "payload": "Diagnosis proven by experiment; memory updated; see syllabus."
+  }
+ ],
+ "result": {
+  "final": "Diagnosis proven by experiment; memory updated; see syllabus.",
+  "error_type": "structure-selection",
+  "experiment": {
+   "count_a": 63180,
+   "count_b": 1600,
+   "outputs_equal": true,
+   "status_a": "ok",
+   "status_b": "ok",
+   "conclusive": true,
+   "prediction_correct": true
+  },
+  "conclusive": true,
+  "prediction": "fewer",
+  "code_a": "\nimport sys\nfrom collections import deque\ncmp_count = 0\ndef main():\n    global cmp_count\n    data = sys.stdin.read().split()\n    n, m = int(data[0]), int(data[1])\n    adj = [[] for _ in range(n)]\n    for i in range(m):\n        u, v = int(data[2+2*i]), int(data[3+2*i])\n        adj[u].append(v); adj[v].append(u)\n    visited = []                       # BUG: list membership is O(n)\n    comps = 0\n    for s in range(n):\n        cmp_count += len(visited)\n        if s in visited:\n            continue\n        comps += 1\n        visited.append(s); q = deque([s])\n        while q:\n            u = q.popleft()\n            for v in adj[u]:\n                cmp_count += len(visited)\n                if v not in visited:\n                    visited.append(v); q.append(v)\n    print(comps)\nmain()\nprint(\"__METRIC__\", cmp_count)\n",
+  "code_b": "\nimport sys\nfrom collections import deque\ncmp_count = 0\ndef main():\n    global cmp_count\n    data = sys.stdin.read().split()\n    n, m = int(data[0]), int(data[1])\n    adj = [[] for _ in range(n)]\n    for i in range(m):\n        u, v = int(data[2+2*i]), int(data[3+2*i])\n        adj[u].append(v); adj[v].append(u)\n    visited = set()                    # FIX: O(1) membership\n    comps = 0\n    for s in range(n):\n        cmp_count += 1\n        if s in visited:\n            continue\n        comps += 1\n        visited.add(s); q = deque([s])\n        while q:\n            u = q.popleft()\n            for v in adj[u]:\n                cmp_count += 1\n                if v not in visited:\n                    visited.add(v); q.append(v)\n    print(comps)\nmain()\nprint(\"__METRIC__\", cmp_count)\n"
+ },
+ "fingerprint": {
+  "structure-selection": 0.25
+ }
+}

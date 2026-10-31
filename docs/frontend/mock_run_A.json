@@ -1,0 +1,200 @@
+{
+ "events": [
+  {
+   "step": 0,
+   "kind": "call",
+   "tool": "classify_failure",
+   "payload": {}
+  },
+  {
+   "step": 0,
+   "kind": "result",
+   "tool": "classify_failure",
+   "payload": {
+    "error_type": "state-commit-timing",
+    "confidence": 0.9,
+    "evidence": "visited is set on dequeue, so duplicates enter the queue"
+   }
+  },
+  {
+   "step": 1,
+   "kind": "call",
+   "tool": "read_memory",
+   "payload": {
+    "user_id": "mock_A"
+   }
+  },
+  {
+   "step": 1,
+   "kind": "result",
+   "tool": "read_memory",
+   "payload": {
+    "fingerprint": {},
+    "due_reviews": []
+   }
+  },
+  {
+   "step": 2,
+   "kind": "call",
+   "tool": "mutate_code",
+   "payload": {
+    "hypothesis": "scripted",
+    "metric_name": null
+   }
+  },
+  {
+   "step": 2,
+   "kind": "result",
+   "tool": "mutate_code",
+   "payload": {
+    "change_description": "mark visited when enqueuing instead of dequeuing",
+    "metric": "pushes",
+    "versions_stored": true
+   }
+  },
+  {
+   "step": 3,
+   "kind": "call",
+   "tool": "generate_test_input",
+   "payload": {
+    "hypothesis": "scripted"
+   }
+  },
+  {
+   "step": 3,
+   "kind": "result",
+   "tool": "generate_test_input",
+   "payload": {
+    "why_tricky": "dense graph, many converging paths",
+    "input_chars": 4297
+   }
+  },
+  {
+   "step": 4,
+   "kind": "call",
+   "tool": "request_prediction",
+   "payload": {}
+  },
+  {
+   "step": -1,
+   "kind": "prediction_request",
+   "tool": "request_prediction",
+   "payload": {
+    "question": "Will version B perform more, fewer or the same operations as version A?",
+    "options": [
+     "more",
+     "fewer",
+     "same"
+    ]
+   }
+  },
+  {
+   "step": 4,
+   "kind": "result",
+   "tool": "request_prediction",
+   "payload": {
+    "guess": "fewer"
+   }
+  },
+  {
+   "step": 5,
+   "kind": "call",
+   "tool": "run_counterfactual",
+   "payload": {}
+  },
+  {
+   "step": 5,
+   "kind": "result",
+   "tool": "run_counterfactual",
+   "payload": {
+    "count_a": 781,
+    "count_b": 40,
+    "outputs_equal": true,
+    "status_a": "ok",
+    "status_b": "ok",
+    "conclusive": true,
+    "prediction_correct": true
+   }
+  },
+  {
+   "step": 6,
+   "kind": "call",
+   "tool": "update_memory",
+   "payload": {
+    "user_id": "mock_A"
+   }
+  },
+  {
+   "step": 6,
+   "kind": "result",
+   "tool": "update_memory",
+   "payload": {
+    "fingerprint": {
+     "state-commit-timing": 0.25
+    },
+    "next_review_date": "2026-11-01"
+   }
+  },
+  {
+   "step": 7,
+   "kind": "call",
+   "tool": "select_problems",
+   "payload": {
+    "user_id": "mock_A"
+   }
+  },
+  {
+   "step": 7,
+   "kind": "result",
+   "tool": "select_problems",
+   "payload": {
+    "syllabus": [
+     {
+      "problem_id": "p1",
+      "title": "Number of Islands",
+      "reason": "Targets your top weakness (state-commit-timing), the mistake just proven by experiment.",
+      "targets": "state-commit-timing"
+     },
+     {
+      "problem_id": "p2",
+      "title": "Course Schedule",
+      "reason": "Near your level, mixes skills.",
+      "targets": "mixed"
+     },
+     {
+      "problem_id": "p5",
+      "title": "Longest Consecutive Sequence",
+      "reason": "Near your level, mixes skills.",
+      "targets": "mixed"
+     }
+    ]
+   }
+  },
+  {
+   "step": 8,
+   "kind": "final",
+   "tool": null,
+   "payload": "Diagnosis proven by experiment; memory updated; see syllabus."
+  }
+ ],
+ "result": {
+  "final": "Diagnosis proven by experiment; memory updated; see syllabus.",
+  "error_type": "state-commit-timing",
+  "experiment": {
+   "count_a": 781,
+   "count_b": 40,
+   "outputs_equal": true,
+   "status_a": "ok",
+   "status_b": "ok",
+   "conclusive": true,
+   "prediction_correct": true
+  },
+  "conclusive": true,
+  "prediction": "fewer",
+  "code_a": "\nimport sys\nfrom collections import deque\npushes = 0\ndef main():\n    global pushes\n    data = sys.stdin.read().split()\n    n, m = int(data[0]), int(data[1])\n    adj = [[] for _ in range(n)]\n    for i in range(m):\n        u, v = int(data[2+2*i]), int(data[3+2*i])\n        adj[u].append(v); adj[v].append(u)\n    visited = [False]*n\n    comps = 0\n    for s in range(n):\n        if visited[s]:\n            continue\n        comps += 1\n        q = deque([s]); pushes += 1\n        while q:\n            u = q.popleft()\n            if visited[u]:\n                continue\n            visited[u] = True          # BUG: committed on dequeue\n            for v in adj[u]:\n                if not visited[v]:\n                    q.append(v); pushes += 1\n    print(comps)\nmain()\nprint(\"__METRIC__\", pushes)\n",
+  "code_b": "\nimport sys\nfrom collections import deque\npushes = 0\ndef main():\n    global pushes\n    data = sys.stdin.read().split()\n    n, m = int(data[0]), int(data[1])\n    adj = [[] for _ in range(n)]\n    for i in range(m):\n        u, v = int(data[2+2*i]), int(data[3+2*i])\n        adj[u].append(v); adj[v].append(u)\n    visited = [False]*n\n    comps = 0\n    for s in range(n):\n        if visited[s]:\n            continue\n        comps += 1\n        visited[s] = True              # FIX: commit on enqueue\n        q = deque([s]); pushes += 1\n        while q:\n            u = q.popleft()\n            for v in adj[u]:\n                if not visited[v]:\n                    visited[v] = True  # FIX: commit on enqueue\n                    q.append(v); pushes += 1\n    print(comps)\nmain()\nprint(\"__METRIC__\", pushes)\n"
+ },
+ "fingerprint": {
+  "state-commit-timing": 0.25
+ }
+}

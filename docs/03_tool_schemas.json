@@ -1,0 +1,235 @@
+{
+  "system_note": "Design-time contract. The implemented declarations live in backend/tools.py (TOOL_DECLS) and are leaner: the backend stores code A/B and the test input in state, so mutate_code, generate_test_input and run_counterfactual do not take code arguments. Where they differ, backend/tools.py wins.",
+  "tools": [
+    {
+      "name": "classify_failure",
+      "backing": "LLM",
+      "description": "Label the most likely reasoning error behind a failed submission.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "problem_statement": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "description": "e.g. Wrong Answer, TLE, MLE, Runtime Error"
+          },
+          "failing_case": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "problem_statement",
+          "code",
+          "verdict"
+        ]
+      },
+      "returns": {
+        "error_type": "state-commit-timing | boundary | structure-selection | ordering | coverage-completeness",
+        "confidence": "number 0-1",
+        "evidence": "string, lines or behaviour that suggest it"
+      }
+    },
+    {
+      "name": "read_memory",
+      "backing": "DB",
+      "description": "Read the user's fingerprint scores and due reviews.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "returns": {
+        "fingerprint": "object error_type->score",
+        "due_reviews": "array"
+      }
+    },
+    {
+      "name": "mutate_code",
+      "backing": "LLM",
+      "description": "Change exactly one decision in the code to test a hypothesis, and insert a named counter for the metric. Must preserve program output.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "hypothesis": {
+            "type": "string"
+          },
+          "metric_name": {
+            "type": "string",
+            "description": "counter variable to insert, e.g. pushes"
+          },
+          "previous_error": {
+            "type": "string",
+            "description": "compile or validation error from the last attempt, if retrying"
+          }
+        },
+        "required": [
+          "code",
+          "hypothesis",
+          "metric_name"
+        ]
+      },
+      "returns": {
+        "code_a_instrumented": "string, original plus counter only",
+        "code_b_mutated": "string, one decision changed plus counter",
+        "change_description": "string"
+      }
+    },
+    {
+      "name": "generate_test_input",
+      "backing": "LLM",
+      "description": "Produce a tricky but valid input that should expose the difference between A and A'. Validated by running both versions.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "problem_statement": {
+            "type": "string"
+          },
+          "hypothesis": {
+            "type": "string"
+          },
+          "input_format": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "problem_statement",
+          "hypothesis",
+          "input_format"
+        ]
+      },
+      "returns": {
+        "test_input": "string, exact stdin text",
+        "why_tricky": "string"
+      }
+    },
+    {
+      "name": "request_prediction",
+      "backing": "USER",
+      "description": "Ask the user to predict the effect of the change before running it. Blocks until the user answers.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "question",
+          "options"
+        ]
+      },
+      "returns": {
+        "guess": "more | fewer | same"
+      }
+    },
+    {
+      "name": "run_counterfactual",
+      "backing": "SANDBOX",
+      "description": "Run code A and code B on the test input in the sandbox and return outputs and metric counts.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "code_a": {
+            "type": "string"
+          },
+          "code_b": {
+            "type": "string"
+          },
+          "test_input": {
+            "type": "string"
+          },
+          "metric_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code_a",
+          "code_b",
+          "test_input",
+          "metric_name"
+        ]
+      },
+      "returns": {
+        "count_a": "int",
+        "count_b": "int",
+        "outputs_equal": "bool",
+        "status_a": "ok | timeout | error",
+        "status_b": "ok | timeout | error",
+        "conclusive": "bool (computed by backend rules, not by the LLM)"
+      }
+    },
+    {
+      "name": "update_memory",
+      "backing": "DB",
+      "description": "Update fingerprint and schedule a review. Only allowed after a conclusive experiment.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "error_type": {
+            "type": "string"
+          },
+          "experiment_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "user_id",
+          "error_type",
+          "experiment_id"
+        ]
+      },
+      "returns": {
+        "fingerprint": "object",
+        "next_review_date": "string"
+      }
+    },
+    {
+      "name": "select_problems",
+      "backing": "LLM + DB",
+      "description": "Pick 3 problems for today: one targeting the top weakness, one due for review, one near the user's level. Each with a reason.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "candidate_problem_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "returns": {
+        "syllabus": "array of {problem_id, reason, targets}"
+      }
+    }
+  ]
+}
